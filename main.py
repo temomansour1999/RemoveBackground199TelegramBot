@@ -1,20 +1,18 @@
 import os
-import requests
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from rembg import remove
+from PIL import Image
 
-# ==== Environment Variables for Railway ====
+# ====== Environment Variables ======
 BOT_TOKEN  = os.getenv("BOT_TOKEN")
-REMOVE_API = os.getenv("REMOVE_API")
-CHANNEL    = os.getenv("CHANNEL")  # EXAMPLE: "@MyChannel" or "MyChannelID"
+CHANNEL    = os.getenv("CHANNEL")  # Example "@MyChannel"
 
-# ================== BOT ====================
-bot = Client("bgRemover", bot_token=BOT_TOKEN)
+# ===================================
+bot = Client("bgRemoverBot", bot_token=BOT_TOKEN)
+users = {}  # store user language
 
-# Store user language in memory (short and fast)
-users = {}
-
-
+# ================== START ==================
 @bot.on_message(filters.command("start"))
 async def start(_, msg):
     users[msg.chat.id] = None
@@ -26,22 +24,22 @@ async def start(_, msg):
         ])
     )
 
-
+# ================ LANGUAGE SELECT ================
 @bot.on_callback_query(filters.regex("lang_"))
 async def choose_lang(_, cb):
     lang = cb.data.split("_")[1]
     users[cb.from_user.id] = lang
 
-    txt = "Join the channel to continue 👇" if lang == "en" else "يرجى الانضمام للقناة للاستمرار 👇"
+    text = "Join the channel to continue 👇" if lang=="en" else "يرجى الانضمام للقناة 👇"
     await cb.message.edit_text(
-        txt,
+        text,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📢 Channel", url=f"https://t.me/{CHANNEL.replace('@','')}")],
-            [InlineKeyboardButton("Done ✓" if lang=="en" else "تم ✓", callback_data="check")]
+            [InlineKeyboardButton("Done ✓" if lang=="en" else "تم ✓", callback_data="check")],
         ])
     )
 
-
+# ================ CHECK SUBSCRIPTION ================
 @bot.on_callback_query(filters.regex("check"))
 async def check(_, cb):
     try:
@@ -55,36 +53,33 @@ async def check(_, cb):
         pass
 
     await cb.answer(
-        "You must join the channel first!" if users.get(cb.from_user.id)=="en" else "يجب ان تنضم للقناة اولاً!",
+        "You must join the channel first!" 
+        if users.get(cb.from_user.id)=="en" else "يجب ان تنضم للقناة اولاً!",
         show_alert=True
     )
 
-
-# ========== Background Remove Handler ==========
+# ================ REMOVE BACKGROUND ================
 @bot.on_message(filters.photo)
-async def remove_bg(_, msg):
-    lang = users.get(msg.chat.id, "en")
-    await msg.reply("Processing..." if lang=="en" else "جاري معالجة الصورة...")
+async def remove_background(_, message):
+    lang = users.get(message.chat.id, "en")
+    await message.reply("Processing..." if lang == "en" else "جاري معالجة الصورة...")
 
-    img_path = await msg.download()
-    result = requests.post(
-        "https://api.remove.bg/v1.0/removebg",
-        files={"image_file": open(img_path, "rb")},
-        data={"size": "auto"},
-        headers={"X-Api-Key": REMOVE_API}
-    )
+    input_image = await message.download()
+    output_image = "output.png"
 
-    if result.status_code == 200:
-        out = "done.png"
-        with open(out, "wb") as f:
-            f.write(result.content)
-        await msg.reply_document(out)
-        os.remove(out)
-    else:
-        await msg.reply("Error removing background ❌")
+    try:
+        img = Image.open(input_image)
+        result = remove(img)        # background removed
+        result.save(output_image)   # save as png
 
-    os.remove(img_path)
+        await message.reply_document(output_image)
 
+        os.remove(output_image)
+    except Exception as e:
+        await message.reply(f"Error ❌\n{e}")
 
+    os.remove(input_image)
+
+# ================== RUN BOT ==================
 if __name__ == "__main__":
     bot.run()
