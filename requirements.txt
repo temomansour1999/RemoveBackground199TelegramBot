@@ -1,5 +1,7 @@
 pyrogram
 tgcrypto
 rembg
+onnxruntime
 Pillow
 python-dotenv
+
