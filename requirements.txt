@@ -1,4 +1,5 @@
 pyrogram
 tgcrypto
-requests
+rembg
+Pillow
 python-dotenv
